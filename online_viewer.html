@@ -615,55 +615,55 @@
         const originalText = btn.innerHTML;
         btn.innerHTML = '⏳'; // 顯示沙漏代表處理中
         
-        // 1. 先取得 WebGL 的原生底圖資料
+        // Safari 友善的 Canvas 合併法：
+        // 我們不讓 html2canvas 處理龐大的 base64 圖片或 WebGL Canvas (這會導致 Safari 崩潰或安全性錯誤)
+        // 而是讓 html2canvas 只拍攝透明背景的 DOM 標記，最後我們自己用原生的 Canvas API 把它疊在底圖上。
         const mapCanvas = map.getCanvas();
-        const mapDataURL = mapCanvas.toDataURL('image/png');
+        const mapContainer = document.getElementById('map');
+        
+        // 在截圖期間，讓 html2canvas 完全忽略 WebGL 原生畫布
+        mapCanvas.setAttribute('data-html2canvas-ignore', 'true');
 
-        // 2. 建立一個暫時的 img 標籤覆蓋在地圖上
-        const img = new Image();
-        img.onload = () => {
-            img.style.position = 'absolute';
-            img.style.top = '0';
-            img.style.left = '0';
-            img.style.width = mapCanvas.style.width || mapCanvas.offsetWidth + 'px';
-            img.style.height = mapCanvas.style.height || mapCanvas.offsetHeight + 'px';
-            img.style.zIndex = '0'; // 放在最底層，但蓋住 WebGL
-
-            const mapContainer = document.getElementById('map');
-            mapContainer.insertBefore(img, mapContainer.firstChild);
-
-            // 3. 徹底將 WebGL Canvas display none，防止 html2canvas 解析它導致崩潰
-            const originalDisplay = mapCanvas.style.display;
-            mapCanvas.style.display = 'none';
-
-            html2canvas(mapContainer, {
-                useCORS: true,
-                allowTaint: true,
-                logging: false,
-                scale: window.devicePixelRatio || 2,
-                ignoreElements: (el) => el.getAttribute('data-html2canvas-ignore') === 'true' // 確保忽略 UI
-            }).then(canvas => {
-                const dataURL = canvas.toDataURL('image/png');
-                const a = document.createElement('a');
-                a.href = dataURL;
-                a.download = 'kowloon_full_map_with_labels.png';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                
-                // 4. 恢復原狀
-                btn.innerHTML = originalText;
-                mapCanvas.style.display = originalDisplay;
-                mapContainer.removeChild(img);
-            }).catch(err => {
-                console.error("Screenshot error:", err);
-                btn.innerHTML = originalText;
-                mapCanvas.style.display = originalDisplay;
-                mapContainer.removeChild(img);
-                alert("截圖失敗，這可能是因為瀏覽器的安全性限制。");
-            });
-        };
-        img.src = mapDataURL;
+        html2canvas(mapContainer, {
+            useCORS: true,
+            backgroundColor: null, // 背景保持透明
+            logging: false,
+            scale: window.devicePixelRatio || 2,
+            ignoreElements: (el) => el.getAttribute('data-html2canvas-ignore') === 'true'
+        }).then(markerCanvas => {
+            // 建立最終用來合成的畫布
+            const finalCanvas = document.createElement('canvas');
+            
+            // 使用 MapLibre WebGL Canvas 的真實像素大小
+            finalCanvas.width = mapCanvas.width;
+            finalCanvas.height = mapCanvas.height;
+            
+            const ctx = finalCanvas.getContext('2d');
+            
+            // 1. 先畫上 WebGL 的底圖
+            ctx.drawImage(mapCanvas, 0, 0, finalCanvas.width, finalCanvas.height);
+            
+            // 2. 再疊加上 html2canvas 擷取的去背 DOM 標記
+            ctx.drawImage(markerCanvas, 0, 0, finalCanvas.width, finalCanvas.height);
+            
+            // 輸出最終圖片
+            const dataURL = finalCanvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = dataURL;
+            a.download = 'kowloon_full_map_with_labels.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            // 恢復 UI 狀態
+            btn.innerHTML = originalText;
+            mapCanvas.removeAttribute('data-html2canvas-ignore');
+        }).catch(err => {
+            console.error("Screenshot error:", err);
+            btn.innerHTML = originalText;
+            mapCanvas.removeAttribute('data-html2canvas-ignore');
+            alert("截圖失敗，這可能是因為瀏覽器的安全性限制。");
+        });
     });
 </script>
 </body>
