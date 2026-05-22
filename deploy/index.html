@@ -613,12 +613,33 @@
         // 先稍微改變按鈕外觀提示用戶正在處理
         const btn = document.getElementById('download-full-btn');
         const originalText = btn.innerHTML;
-        btn.innerHTML = '處理中...';
+        btn.innerHTML = '⏳'; // 顯示沙漏代表處理中
         
-        html2canvas(document.getElementById('map'), {
-            useCORS: true,       // 允許跨域圖片（例如確保抓到底圖）
+        // 1. 先取得 WebGL 的原生底圖資料
+        const mapCanvas = map.getCanvas();
+        const mapDataURL = mapCanvas.toDataURL('image/png');
+
+        // 2. 建立一個暫時的 img 標籤覆蓋在地圖上
+        const img = document.createElement('img');
+        img.src = mapDataURL;
+        img.style.position = 'absolute';
+        img.style.top = '0';
+        img.style.left = '0';
+        img.style.width = mapCanvas.style.width;
+        img.style.height = mapCanvas.style.height;
+        img.style.zIndex = '0'; // 放在最底層，但蓋住 WebGL
+
+        const mapContainer = document.getElementById('map');
+        mapContainer.insertBefore(img, mapContainer.firstChild);
+
+        // 3. 暫時隱藏 WebGL Canvas，避免 html2canvas 處理跨域 WebGL 出錯
+        mapCanvas.style.visibility = 'hidden';
+
+        html2canvas(mapContainer, {
+            useCORS: true,
             logging: false,
-            scale: window.devicePixelRatio || 2 // 確保高解析機型會輸出 Retina 高清大圖
+            scale: window.devicePixelRatio || 2,
+            ignoreElements: (el) => el.getAttribute('data-html2canvas-ignore') === 'true' // 確保忽略 UI
         }).then(canvas => {
             const dataURL = canvas.toDataURL('image/png');
             const a = document.createElement('a');
@@ -628,7 +649,16 @@
             a.click();
             document.body.removeChild(a);
             
+            // 4. 恢復原狀
             btn.innerHTML = originalText;
+            mapCanvas.style.visibility = 'visible';
+            mapContainer.removeChild(img);
+        }).catch(err => {
+            console.error("Screenshot error:", err);
+            btn.innerHTML = originalText;
+            mapCanvas.style.visibility = 'visible';
+            mapContainer.removeChild(img);
+            alert("截圖失敗，這可能是因為瀏覽器的安全性限制。");
         });
     });
 </script>
