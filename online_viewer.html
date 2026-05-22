@@ -130,10 +130,22 @@
     padding-top: 6px;
     margin-top: 4px;
   }
-  #download-btn {
+  #right-panel {
     position: absolute;
     top: 20px;
     right: 20px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 220px;
+  }
+  .actions-row {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .actions-row button {
     background: white;
     border: 2px solid #8c7355;
     border-radius: 8px;
@@ -141,33 +153,71 @@
     font-size: 20px;
     cursor: pointer;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    z-index: 100;
     transition: all 0.2s;
-  }
-  #download-btn:hover {
-    background: #f3efe6;
-    transform: scale(1.05);
   }
   #download-full-btn {
-    position: absolute;
-    top: 20px;
-    right: 70px;
     background: #8c7355;
-    color: white;
+  }
+  #download-full-btn:hover { background: #a46d3e; transform: scale(1.05); }
+  #download-btn:hover { background: #f3efe6; transform: scale(1.05); }
+  
+  #gps-btn {
+    width: 100%;
+    padding: 10px;
+    background: white;
     border: 2px solid #8c7355;
     border-radius: 8px;
-    padding: 10px;
-    font-size: 20px;
+    color: #8c7355;
     font-weight: bold;
+    font-size: 14px;
     cursor: pointer;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    z-index: 100;
     transition: all 0.2s;
   }
-  #download-full-btn:hover {
-    background: #a46d3e;
-    transform: scale(1.05);
+  #gps-btn:hover { background: #f3efe6; transform: scale(1.02); }
+
+  #layer-control {
+    background: rgba(255, 255, 255, 0.95);
+    border: 2px solid #8c7355;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    color: #5d4d3a;
+    font-size: 14px;
   }
+  #layer-control h3 {
+    margin: 0 0 10px 0;
+    font-size: 15px;
+    color: #8c7355;
+    border-bottom: 1px solid #d8cbb4;
+    padding-bottom: 5px;
+  }
+  #layer-control label {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  #layer-control input[type="checkbox"] {
+    accent-color: #8c7355;
+    margin-right: 8px;
+    width: 16px; height: 16px;
+  }
+  .shop-sub-toggle-container {
+    margin-left: 24px;
+    font-size: 13px;
+    border-left: 2px solid #d8aa6c;
+    padding-left: 10px;
+    margin-top: -4px;
+    margin-bottom: 8px;
+  }
+  .shop-sub-toggle-container label {
+    font-weight: normal;
+    margin-bottom: 6px;
+  }
+  /* Hide the default MapLibre Geolocate control since we have a custom button */
+  .maplibregl-ctrl-geolocate { display: none !important; }
 </style>
 <!-- 加入 html2canvas 負責擷取 DOM 與 WebGL 混合畫面 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -177,8 +227,23 @@
   <h2>Kowloon Map <span style="background: #d8aa6c; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Earth Colors</span></h2>
   <p>更新：修復 MTR 標誌遮蔽、調整為灰色細軌、加入綠意盎然的大地色公園</p>
 </div>
-<button id="download-full-btn" title="下載地圖連同所有星號、地鐵標記與文字 (Full PNG)">📸</button>
-<button id="download-btn" title="僅下載純淨地圖底圖 (Base PNG)">📷</button>
+<div id="right-panel" data-html2canvas-ignore="true">
+  <div class="actions-row">
+    <button id="download-full-btn" title="下載地圖連同所有星號、地鐵標記與文字 (Full PNG)">📸</button>
+    <button id="download-btn" title="僅下載純淨地圖底圖 (Base PNG)">📷</button>
+  </div>
+  <button id="gps-btn">📍 取用你的 GPS 位置</button>
+  
+  <div id="layer-control">
+    <h3>圖層管理</h3>
+    <label><input type="checkbox" id="toggle-mtr" checked> 🚇 地鐵站</label>
+    <label><input type="checkbox" id="toggle-stars" checked> ⭐ 關草聯據點</label>
+    <label><input type="checkbox" id="toggle-shops" checked> 🏪 合作小店</label>
+    <div class="shop-sub-toggle-container" id="shop-subcategories">
+      <!-- Dynamically populated -->
+    </div>
+  </div>
+</div>
 <div id="map"></div>
 
 <script>
@@ -196,6 +261,7 @@
         localIdeographFontFamily: "'Noto Sans', 'Noto Sans CJK SC', 'Helvetica Neue', Arial, sans-serif"
     });
 
+    window.markersState = { mtr: [], stars: [], shops: {} };
     map.on('style.load', () => {
         const layers = map.getStyle().layers;
         
@@ -361,9 +427,10 @@
                 <div class="metro-classic-icon">M</div>
                 <div class="mtr-label">${station.title}</div>
             `;
-            new maplibregl.Marker({ element: el })
+            const mtrM = new maplibregl.Marker({ element: el })
                 .setLngLat([station.lng, station.lat])
                 .addTo(map);
+            window.markersState.mtr.push(mtrM);
         });
 
         // ==========================================
@@ -396,9 +463,10 @@
             `;
             el.style.textAlign = 'center';
 
-            new maplibregl.Marker({ element: el, offset: [0, -10] })
+            const starM = new maplibregl.Marker({ element: el, offset: [0, -10] })
                 .setLngLat([loc.lng, loc.lat])
                 .addTo(map);
+            window.markersState.stars.push(starM);
         });
 
         // ==========================================
@@ -457,10 +525,67 @@
                     <div class="shop-popup-hours">🕐 ${shop.hours}</div>
                 `);
 
-            new maplibregl.Marker({ element: el })
+            const shopM = new maplibregl.Marker({ element: el })
                 .setLngLat([shop.lng, shop.lat])
                 .setPopup(popup)
                 .addTo(map);
+            if (!window.markersState.shops[shop.cat]) window.markersState.shops[shop.cat] = [];
+            window.markersState.shops[shop.cat].push(shopM);
+        });
+
+
+        // --- 圖層管理選單邏輯 ---
+        const shopSubContainer = document.getElementById('shop-subcategories');
+        Object.keys(window.markersState.shops).forEach(cat => {
+            const label = document.createElement('label');
+            label.innerHTML = `<input type="checkbox" class="shop-sub-toggle" value="${cat}" checked> ${cat}`;
+            shopSubContainer.appendChild(label);
+        });
+
+        document.getElementById('toggle-mtr').addEventListener('change', (e) => {
+            window.markersState.mtr.forEach(m => m.getElement().style.display = e.target.checked ? '' : 'none');
+        });
+        document.getElementById('toggle-stars').addEventListener('change', (e) => {
+            window.markersState.stars.forEach(m => m.getElement().style.display = e.target.checked ? '' : 'none');
+        });
+
+        const toggleShopsMain = document.getElementById('toggle-shops');
+        const shopSubCheckboxes = document.getElementsByClassName('shop-sub-toggle');
+
+        function updateShopMarkers() {
+            const mainChecked = toggleShopsMain.checked;
+            Array.from(shopSubCheckboxes).forEach(cb => {
+                const cat = cb.value;
+                const isVisible = mainChecked && cb.checked;
+                if (window.markersState.shops[cat]) {
+                    window.markersState.shops[cat].forEach(m => m.getElement().style.display = isVisible ? '' : 'none');
+                }
+            });
+        }
+
+        toggleShopsMain.addEventListener('change', (e) => {
+            Array.from(shopSubCheckboxes).forEach(cb => cb.checked = e.target.checked);
+            updateShopMarkers();
+        });
+
+        shopSubContainer.addEventListener('change', (e) => {
+            if (e.target.classList.contains('shop-sub-toggle')) {
+                const anyChecked = Array.from(shopSubCheckboxes).some(cb => cb.checked);
+                toggleShopsMain.checked = anyChecked;
+                updateShopMarkers();
+            }
+        });
+        
+        // --- GPS 定位控制 ---
+        const geolocate = new maplibregl.GeolocateControl({
+            positionOptions: { enableHighAccuracy: true },
+            trackUserLocation: true,
+            showUserHeading: true
+        });
+        map.addControl(geolocate); // 加到地圖 (但是按鈕被 CSS 隱藏了)
+        
+        document.getElementById('gps-btn').addEventListener('click', () => {
+            geolocate.trigger();
         });
 
     });
