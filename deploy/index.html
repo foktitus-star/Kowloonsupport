@@ -74,6 +74,62 @@
     pointer-events: none;
     opacity: 0.85;
   }
+  .shop-marker {
+    width: 18px;
+    height: 18px;
+    background: #d8aa6c;
+    border: 2px solid white;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+    cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+  }
+  .shop-marker:hover {
+    background: #c4884a;
+    transform: rotate(-45deg) scale(1.2);
+  }
+  .maplibregl-popup-content {
+    background: #faf7f0 !important;
+    border: 1px solid #d8cbb4 !important;
+    border-radius: 10px !important;
+    padding: 14px 16px !important;
+    box-shadow: 0 4px 16px rgba(93,77,58,0.15) !important;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    max-width: 260px;
+  }
+  .maplibregl-popup-close-button {
+    font-size: 18px;
+    color: #8c7355;
+    padding: 4px 8px;
+  }
+  .shop-popup-name {
+    font-size: 15px;
+    font-weight: bold;
+    color: #5d4d3a;
+    margin-bottom: 6px;
+  }
+  .shop-popup-cat {
+    display: inline-block;
+    background: #d8aa6c;
+    color: white;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+  }
+  .shop-popup-addr {
+    font-size: 12px;
+    color: #8c7355;
+    margin-bottom: 4px;
+  }
+  .shop-popup-hours {
+    font-size: 12px;
+    color: #a46d3e;
+    border-top: 1px solid #e8e0d2;
+    padding-top: 6px;
+    margin-top: 4px;
+  }
   #download-btn {
     position: absolute;
     top: 20px;
@@ -361,6 +417,49 @@
             el.className = 'region-label';
             new maplibregl.Marker({ element: el })
                 .setLngLat([region.lng, region.lat])
+                .addTo(map);
+        });
+
+        // ==========================================
+        //         合作小店標記 (可點擊顯示資訊)
+        // ==========================================
+        const partnerShops = [
+            // === 大角咀 ===
+            { lng: 114.1619957, lat: 22.318714, name: "香麥屋麵包西餅", cat: "餐飲類", addr: "大角咀道115號", hours: "週一至週日 06:00-21:00" },
+            { lng: 114.1638525, lat: 22.3201614, name: "雷師傅秘方涼茶", cat: "餐飲類", addr: "晏架街79A號", hours: "週一至週六 11:00-20:00" },
+            { lng: 114.1629923, lat: 22.3212709, name: "沾仔記", cat: "餐飲類", addr: "埃華街11號", hours: "週二至週日 11:30-20:30 (週一休息)" },
+            { lng: 114.1603824, lat: 22.3198729, name: "越南堡", cat: "糧油雜貨類", addr: "角祥街51號", hours: "週一至週日 12:00-22:00" },
+            { lng: 114.1639024, lat: 22.3211142, name: "仁愛大藥房", cat: "藥房", addr: "埃華街57號", hours: "週二至週日 08:00-22:00 / 週一 10:30-22:00" },
+            { lng: 114.160788, lat: 22.3219484, name: "贊暉文具公司", cat: "文具店", addr: "大全街61號", hours: "週一至週六 10:30-19:30" },
+            // === 旺角 ===
+            { lng: 114.1710372, lat: 22.3170507, name: "鏡記五金", cat: "五金家品", addr: "通菜街198A", hours: "週一至週五 08:30-19:00 / 週六 08:30-18:00 (週日休息)" },
+            // === 深水埗 ===
+            { lng: 114.1621022, lat: 22.327739, name: "富士洗衣店", cat: "洗衣店", addr: "南昌街35號", hours: "週一至週日 10:00-20:00" },
+            // === 太子 ===
+            { lng: 114.1664202, lat: 22.3249656, name: "籠太子點心專門店", cat: "餐飲類", addr: "柏樹街9號", hours: "每日 10:00-02:00" },
+            { lng: 114.1643, lat: 22.3271, name: "竹面譜太子店", cat: "餐飲類", addr: "荔枝角道68號", hours: "每日 07:00-23:00 (只提供外賣)" },
+            { lng: 114.1625, lat: 22.3287, name: "大小通吃", cat: "餐飲類", addr: "荔枝角道134d號", hours: "週一至週六 07:00-19:00" },
+            { lng: 114.1638, lat: 22.3276, name: "日昇車仔麵", cat: "餐飲類", addr: "荔枝角道82號", hours: "週一至週日 11:00-22:00" },
+            { lng: 114.1695, lat: 22.3244, name: "山東小城", cat: "餐飲類", addr: "西洋菜南街198號", hours: "每日 11:00-22:00" },
+            { lng: 114.1694, lat: 22.3235, name: "恒誠大藥房化粧品有限公司", cat: "藥房", addr: "水渠道3-13號長寧大廈", hours: "每日 09:00-21:00" }
+        ];
+
+        partnerShops.forEach(shop => {
+            const el = document.createElement('div');
+            el.className = 'shop-marker';
+            el.title = shop.name;
+
+            const popup = new maplibregl.Popup({ offset: 25, closeButton: true })
+                .setHTML(`
+                    <div class="shop-popup-name">${shop.name}</div>
+                    <span class="shop-popup-cat">${shop.cat}</span>
+                    <div class="shop-popup-addr">📍 ${shop.addr}</div>
+                    <div class="shop-popup-hours">🕐 ${shop.hours}</div>
+                `);
+
+            new maplibregl.Marker({ element: el })
+                .setLngLat([shop.lng, shop.lat])
+                .setPopup(popup)
                 .addTo(map);
         });
 
